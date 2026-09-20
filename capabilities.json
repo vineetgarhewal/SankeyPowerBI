@@ -1,0 +1,276 @@
+{
+    "dataRoles": [
+        {
+            "displayName": "Source",
+            "name": "source",
+            "kind": "Grouping"
+        },
+        {
+            "displayName": "Destination",
+            "name": "target",
+            "kind": "Grouping"
+        },
+        {
+            "displayName": "Weight",
+            "name": "weight",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Flow color or category",
+            "name": "color",
+            "kind": "Grouping"
+        }
+    ],
+    "objects": {
+        "layout": {
+            "properties": {
+                "nodeWidth": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "nodePadding": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "autoNodeSpacing": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "horizontalSpacingPercent": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "autoHorizontalSpacing": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "palette": {
+                    "type": {
+                        "enumeration": [
+                            { "displayName": "Custom / data colors", "value": "custom" },
+                            { "displayName": "Soft Pastel", "value": "softPastel" },
+                            { "displayName": "Power BI Classic", "value": "powerBiClassic" },
+                            { "displayName": "Azure Ocean", "value": "azureOcean" },
+                            { "displayName": "Colorblind-Conscious", "value": "colorblindConscious" },
+                            { "displayName": "Corporate Blue", "value": "corporateBlue" },
+                            { "displayName": "Fresh Nature", "value": "freshNature" },
+                            { "displayName": "Warm Sunset", "value": "warmSunset" },
+                            { "displayName": "Monochrome Blue", "value": "monochromeBlue" },
+                            { "displayName": "Muted Professional", "value": "mutedProfessional" },
+                            { "displayName": "Dark Background", "value": "darkBackground" }
+                        ]
+                    }
+                },
+                "heightUtilization": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "nodeScalePercent": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "autoNodeScale": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "edgePadding": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "backgroundColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "showDotPattern": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        },
+        "nodes": {
+            "properties": {
+                "defaultColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "borderColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "borderWidth": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "maxHeightPercent": {
+                    "type": {
+                        "numeric": true
+                    }
+                }
+            }
+        },
+        "links": {
+            "properties": {
+                "defaultColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "opacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "autoOpacity": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        },
+        "labels": {
+            "properties": {
+                "show": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "showValues": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "color": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "fontSize": {
+                    "type": {
+                        "formatting": {
+                            "fontSize": true
+                        }
+                    }
+                },
+                "autoFontSize": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "bold": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "autoBold": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        },
+        "state": {
+            "properties": {
+                "nodePositions": {
+                    "type": {
+                        "text": true
+                    }
+                },
+                "dataSignature": {
+                    "type": {
+                        "text": true
+                    }
+                }
+            }
+        }
+    },
+    "dataViewMappings": [
+        {
+            "conditions": [
+                {
+                    "source": {
+                        "max": 1
+                    },
+                    "target": {
+                        "max": 1
+                    },
+                    "weight": {
+                        "max": 1
+                    },
+                    "color": {
+                        "max": 1
+                    }
+                }
+            ],
+            "table": {
+                "rows": {
+                    "select": [
+                        {
+                            "for": {
+                                "in": "source"
+                            }
+                        },
+                        {
+                            "for": {
+                                "in": "target"
+                            }
+                        },
+                        {
+                            "for": {
+                                "in": "weight"
+                            }
+                        },
+                        {
+                            "for": {
+                                "in": "color"
+                            }
+                        }
+                    ],
+                    "dataReductionAlgorithm": {
+                        "window": {
+                            "count": 30000
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "sorting": {
+        "default": {}
+    },
+    "supportsKeyboardFocus": true,
+    "privileges": []
+}
