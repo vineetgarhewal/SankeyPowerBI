@@ -159,12 +159,19 @@ class LinkCard extends FormattingSettingsCard {
         value: false
     });
 
+    showValues = new formattingSettings.ToggleSwitch({
+        name: "showValues",
+        displayName: "Show flow values",
+        value: false
+    });
+
     name = "links";
     displayName = "Links";
     slices: FormattingSettingsSlice[] = [
         this.defaultColor,
         this.opacity,
-        this.autoOpacity
+        this.autoOpacity,
+        this.showValues
     ];
 }
 

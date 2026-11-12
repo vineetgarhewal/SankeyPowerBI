@@ -11,7 +11,8 @@
     "pbiviz": "pbiviz",
     "start": "pbiviz start",
     "package": "pbiviz package",
-    "lint": "npx eslint ."
+    "lint": "npx eslint .",
+    "test": "node --test"
   },
   "dependencies": {
     "@types/d3": "7.4.3",

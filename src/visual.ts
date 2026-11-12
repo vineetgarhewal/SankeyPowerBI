@@ -15,6 +15,7 @@ import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 
 import { VisualFormattingSettingsModel } from "./settings";
 import { DEFAULT_PALETTE_ID, PALETTE_OPTIONS } from "./palettes";
+import { createHtmlSnapshot } from "./htmlExport";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DEFAULT_COLORS = [
@@ -87,6 +88,9 @@ export class Visual implements IVisual {
     private readonly labelBoldValue: HTMLSpanElement;
     private readonly labelBoldAuto: HTMLButtonElement;
     private readonly paletteSelect: HTMLSelectElement;
+    private readonly copyHtmlButton: HTMLButtonElement;
+    private readonly copyStatus: HTMLDivElement;
+    private readonly copyHtmlText: HTMLTextAreaElement;
     private readonly selectionManager: ISelectionManager;
     private readonly tooltipService: ITooltipService;
     private readonly formattingSettingsService: FormattingSettingsService;
@@ -102,6 +106,7 @@ export class Visual implements IVisual {
     private effectiveNodeScale = 100;
     private effectiveNodeSpacing = 24;
     private effectiveHorizontalSpacing = 100;
+    private copyingHtml = false;
 
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
@@ -248,6 +253,32 @@ export class Visual implements IVisual {
         }
         paletteLabel.appendChild(this.paletteSelect);
         scaleControl.appendChild(paletteLabel);
+
+        this.copyHtmlButton = document.createElement("button");
+        this.copyHtmlButton.type = "button";
+        this.copyHtmlButton.classList.add("copy-html");
+        this.copyHtmlButton.textContent = "Copy HTML";
+        this.copyHtmlButton.title = "Copy the current diagram as HTML, then paste into a text editor and save as sankey.html";
+        this.copyHtmlButton.disabled = true;
+        this.copyHtmlButton.addEventListener("click", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            void this.copyHtml();
+        });
+        scaleControl.appendChild(this.copyHtmlButton);
+        this.copyStatus = document.createElement("div");
+        this.copyStatus.classList.add("copy-status");
+        this.copyStatus.setAttribute("role", "status");
+        this.copyStatus.setAttribute("aria-live", "polite");
+        scaleControl.appendChild(this.copyStatus);
+        this.copyHtmlText = document.createElement("textarea");
+        this.copyHtmlText.classList.add("copy-html-text");
+        this.copyHtmlText.readOnly = true;
+        this.copyHtmlText.hidden = true;
+        this.copyHtmlText.setAttribute("aria-label", "HTML snapshot: press Ctrl+C or Command+C to copy");
+        this.copyHtmlText.addEventListener("click", event => event.stopPropagation());
+        this.copyHtmlText.addEventListener("keydown", event => event.stopPropagation());
+        scaleControl.appendChild(this.copyHtmlText);
         this.target.appendChild(scaleControl);
 
         const branding = document.createElement("button");
@@ -475,6 +506,12 @@ export class Visual implements IVisual {
     private render(width: number, height: number): void {
         this.viewportWidth = width;
         this.viewportHeight = height;
+        this.copyHtmlButton.disabled = true;
+        if (!this.copyingHtml) {
+            this.copyHtmlText.hidden = true;
+            this.copyHtmlText.value = "";
+            this.copyStatus.textContent = "";
+        }
         this.svg.replaceChildren();
         this.svg.setAttribute("width", `${Math.max(0, width)}`);
         this.svg.setAttribute("height", `${Math.max(0, height)}`);
@@ -514,6 +551,38 @@ export class Visual implements IVisual {
 
         for (const node of layout.nodes) {
             this.renderNode(nodeGroup, node, width, height);
+        }
+        this.applySelection(this.selectionManager.getSelectionIds() as unknown as ISelectionId[]);
+        this.copyHtmlButton.disabled = this.copyingHtml;
+    }
+
+    private async copyHtml(): Promise<void> {
+        if (this.copyingHtml || !this.svg.querySelectorAll(".sankey-flow").length) {
+            return;
+        }
+
+        this.copyingHtml = true;
+        this.copyHtmlButton.disabled = true;
+        this.copyHtmlText.hidden = true;
+        this.copyHtmlText.value = "";
+        this.copyStatus.textContent = "Preparing HTML snapshot...";
+        try {
+            const content = createHtmlSnapshot(this.svg);
+            try {
+                await navigator.clipboard.writeText(content);
+                this.copyStatus.textContent = "HTML copied. Paste into a text editor and save as sankey.html.";
+            } catch {
+                this.copyHtmlText.value = content;
+                this.copyHtmlText.hidden = false;
+                this.copyHtmlText.focus();
+                this.copyHtmlText.select();
+                this.copyStatus.textContent = "Automatic copying is unavailable. Press Ctrl+C (Mac: Command+C) to copy the selected HTML, then paste into a text editor and save as sankey.html.";
+            }
+        } catch {
+            this.copyStatus.textContent = "The HTML snapshot could not be prepared. Please try again.";
+        } finally {
+            this.copyingHtml = false;
+            this.copyHtmlButton.disabled = !this.svg.querySelectorAll(".sankey-flow").length;
         }
     }
 
@@ -609,25 +678,27 @@ export class Visual implements IVisual {
 
         const labelFontSize = this.getEffectiveLabelFontSize();
         const edgePadding = this.clamp(this.formattingSettings.layoutCard.edgePadding.value, 8, 100);
-        const sourceLabelWidth = Math.max(
+        const sourceLabelWidth = this.formattingSettings.labelCard.show.value ? Math.max(
             0,
             ...nodes
                 .filter(node => node.depth === 0)
                 .map(node => this.measureLabelWidth(node.name, node.value, labelFontSize))
-        );
+        ) : 0;
         const targetLabelWidth = Math.max(
             0,
             ...nodes
                 .filter(node => node.outgoing.length === 0)
                 .map(node => this.measureLabelWidth(node.name, node.value, labelFontSize))
         );
-        const leftMarginCap = Math.min(200, width * 0.38);
         const rightMarginCap = Math.min(160, width * 0.30);
         const margin = {
             top: 24,
             right: Math.min(rightMarginCap, Math.max(70, targetLabelWidth + edgePadding)),
             bottom: 24,
-            left: Math.min(leftMarginCap, Math.max(100, sourceLabelWidth + edgePadding))
+            left: Math.max(
+                Math.min(100, width * 0.38),
+                sourceLabelWidth > 0 ? sourceLabelWidth + 8 + edgePadding : 0
+            )
         };
         const innerWidth = Math.max(1, width - margin.left - margin.right);
         const innerHeight = Math.max(1, height - margin.top - margin.bottom);
@@ -863,6 +934,22 @@ export class Visual implements IVisual {
     }
 
     private renderLink(parent: SVGGElement, link: SankeyLink): void {
+        const group = document.createElementNS(SVG_NS, "g");
+        group.classList.add("sankey-flow");
+        group.dataset.selectionKey = link.selectionId.getKey();
+        group.setAttribute("tabindex", "0");
+        group.setAttribute("role", "button");
+        group.setAttribute("aria-label", `${link.source.name} to ${link.target.name}: ${this.formatValue(link.value)}`);
+
+        const hitArea = document.createElementNS(SVG_NS, "path");
+        hitArea.classList.add("sankey-link-hit-area");
+        hitArea.setAttribute("d", this.linkPath(link));
+        hitArea.setAttribute("fill", "none");
+        hitArea.setAttribute("stroke", "transparent");
+        hitArea.setAttribute("stroke-width", `${Math.max(10, link.width)}`);
+        hitArea.setAttribute("pointer-events", "stroke");
+        group.appendChild(hitArea);
+
         const path = document.createElementNS(SVG_NS, "path");
         path.classList.add("sankey-link");
         path.setAttribute("d", this.linkPath(link));
@@ -873,16 +960,36 @@ export class Visual implements IVisual {
             "stroke-opacity",
             `${this.getEffectiveLinkOpacity() / 100}`
         );
-        path.setAttribute("tabindex", "0");
-        path.setAttribute("aria-label", `${link.source.name} to ${link.target.name}: ${link.value}`);
-        path.dataset.selectionKey = link.selectionId.getKey();
+        group.appendChild(path);
 
-        path.addEventListener("click", event => {
+        const title = document.createElementNS(SVG_NS, "title");
+        title.textContent = `${link.source.name} to ${link.target.name}: ${this.formatValue(link.value)}`;
+        group.appendChild(title);
+
+        if (this.formattingSettings.linkCard.showValues.value) {
+            const label = document.createElementNS(SVG_NS, "text");
+            label.classList.add("sankey-link-label");
+            const nodeWidth = this.clamp(this.formattingSettings.layoutCard.nodeWidth.value, 8, 60);
+            label.setAttribute("x", `${(link.source.x + nodeWidth + link.target.x) / 2}`);
+            label.setAttribute("y", `${(link.y0 + link.y1) / 2 - 4}`);
+            label.setAttribute("text-anchor", "middle");
+            label.setAttribute("fill", this.isDarkPaletteSelected()
+                ? "#FFFFFF"
+                : this.formattingSettings.labelCard.color.value.value);
+            label.setAttribute("stroke", this.isDarkPaletteSelected()
+                ? "#000000"
+                : this.formattingSettings.layoutCard.backgroundColor.value.value);
+            label.setAttribute("font-size", `${this.getEffectiveLabelFontSize()}px`);
+            label.textContent = this.formatValue(link.value);
+            group.appendChild(label);
+        }
+
+        group.addEventListener("click", event => {
             event.stopPropagation();
             void this.selectionManager.select(link.selectionId, event.ctrlKey || event.metaKey)
                 .then(ids => this.applySelection(ids as unknown as ISelectionId[]));
         });
-        path.addEventListener("keydown", event => {
+        group.addEventListener("keydown", event => {
             if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 event.stopPropagation();
@@ -890,10 +997,18 @@ export class Visual implements IVisual {
                     .then(ids => this.applySelection(ids as unknown as ISelectionId[]));
             }
         });
-        path.addEventListener("mouseenter", event => this.showLinkTooltip(event, link));
-        path.addEventListener("mousemove", event => this.moveTooltip(event));
-        path.addEventListener("mouseleave", () => this.tooltipService.hide({ immediately: true, isTouchEvent: false }));
-        parent.appendChild(path);
+        group.addEventListener("mouseenter", event => {
+            this.highlightFlows([link.selectionId]);
+            this.showLinkTooltip(event, link);
+        });
+        group.addEventListener("mousemove", event => this.moveTooltip(event, [link.selectionId]));
+        group.addEventListener("mouseleave", () => {
+            this.highlightFlows();
+            this.tooltipService.hide({ immediately: true, isTouchEvent: false });
+        });
+        group.addEventListener("focus", () => this.highlightFlows([link.selectionId]));
+        group.addEventListener("blur", () => this.highlightFlows());
+        parent.appendChild(group);
     }
 
     private renderNode(
@@ -928,7 +1043,9 @@ export class Visual implements IVisual {
             text.setAttribute("y", `${node.height / 2}`);
             text.setAttribute("text-anchor", isFirstColumn ? "end" : "start");
             text.setAttribute("dominant-baseline", "middle");
-            text.setAttribute("fill", this.formattingSettings.labelCard.color.value.value);
+            text.setAttribute("fill", this.isDarkPaletteSelected()
+                ? "#FFFFFF"
+                : this.formattingSettings.labelCard.color.value.value);
             text.setAttribute("font-size", `${this.getEffectiveLabelFontSize()}px`);
             text.setAttribute(
                 "font-weight",
@@ -997,9 +1114,17 @@ export class Visual implements IVisual {
                     .then(ids => this.applySelection(ids as unknown as ISelectionId[]));
             }
         });
-        group.addEventListener("mouseenter", event => this.showNodeTooltip(event, node));
-        group.addEventListener("mousemove", event => this.moveTooltip(event));
-        group.addEventListener("mouseleave", () => this.tooltipService.hide({ immediately: true, isTouchEvent: false }));
+        group.addEventListener("mouseenter", event => {
+            this.highlightFlows(node.selectionIds);
+            this.showNodeTooltip(event, node);
+        });
+        group.addEventListener("mousemove", event => this.moveTooltip(event, node.selectionIds));
+        group.addEventListener("mouseleave", () => {
+            this.highlightFlows();
+            this.tooltipService.hide({ immediately: true, isTouchEvent: false });
+        });
+        group.addEventListener("focus", () => this.highlightFlows(node.selectionIds));
+        group.addEventListener("blur", () => this.highlightFlows());
         parent.appendChild(group);
     }
 
@@ -1014,20 +1139,37 @@ export class Visual implements IVisual {
     private applySelection(selectionIds: ISelectionId[]): void {
         const selected = new Set(selectionIds.map(id => id.getKey()));
         const hasSelection = selected.size > 0;
-        this.svg.querySelectorAll<SVGPathElement>(".sankey-link").forEach(path => {
-            const key = path.dataset.selectionKey ?? "";
-            path.classList.toggle("dimmed", hasSelection && !selected.has(key));
+        this.svg.querySelectorAll<SVGGElement>(".sankey-flow").forEach(group => {
+            const key = group.dataset.selectionKey ?? "";
+            group.classList.toggle("dimmed", hasSelection && !selected.has(key));
+        });
+    }
+
+    private highlightFlows(selectionIds: ISelectionId[] = []): void {
+        const highlighted = new Set(selectionIds.map(id => id.getKey()));
+        this.svg.querySelectorAll<SVGGElement>(".sankey-flow").forEach(group => {
+            const key = group.dataset.selectionKey ?? "";
+            group.classList.toggle("hover-dimmed", highlighted.size > 0 && !highlighted.has(key));
         });
     }
 
     private showLinkTooltip(event: MouseEvent, link: SankeyLink): void {
+        const outgoing = link.source.outgoing.reduce((sum, item) => sum + item.value, 0);
+        const incoming = link.target.incoming.reduce((sum, item) => sum + item.value, 0);
+        const weightColumn = this.dataView?.table?.columns.find(column => column.roles?.weight);
+        const percent = new Intl.NumberFormat(undefined, {
+            style: "percent",
+            maximumFractionDigits: 1
+        });
         this.tooltipService.show({
             coordinates: [event.clientX, event.clientY],
             isTouchEvent: false,
             dataItems: [
                 { displayName: "Source", value: link.source.name },
                 { displayName: "Destination", value: link.target.name },
-                { displayName: "Weight", value: this.formatValue(link.value) }
+                { displayName: weightColumn?.displayName || "Weight", value: this.formatValue(link.value) },
+                { displayName: "Share of source outgoing", value: percent.format(outgoing > 0 ? link.value / outgoing : 0) },
+                { displayName: "Share of destination incoming", value: percent.format(incoming > 0 ? link.value / incoming : 0) }
             ],
             identities: [link.selectionId]
         });
@@ -1042,23 +1184,53 @@ export class Visual implements IVisual {
             dataItems: [
                 { displayName: "Node", value: node.name },
                 { displayName: "Incoming", value: this.formatValue(incoming) },
-                { displayName: "Outgoing", value: this.formatValue(outgoing) }
+                { displayName: "Outgoing", value: this.formatValue(outgoing) },
+                ...this.getFlowBreakdown(node.outgoing, link => link.target.name, "To"),
+                ...this.getFlowBreakdown(node.incoming, link => link.source.name, "From")
             ],
             identities: node.selectionIds
         });
     }
 
-    private moveTooltip(event: MouseEvent): void {
+    private getFlowBreakdown(
+        links: SankeyLink[],
+        relatedName: (link: SankeyLink) => string,
+        direction: string
+    ): powerbi.extensibility.VisualTooltipDataItem[] {
+        const totals = new Map<string, number>();
+        for (const link of links) {
+            const name = relatedName(link);
+            totals.set(name, (totals.get(name) ?? 0) + link.value);
+        }
+        const ordered = Array.from(totals).sort((left, right) => right[1] - left[1]);
+        const items = ordered.slice(0, 10)
+            .map(([name, value]) => ({
+                displayName: `${direction} ${name}`,
+                value: this.formatValue(value)
+            }));
+        if (ordered.length > 10) {
+            items.push({
+                displayName: `${direction} other nodes (${ordered.length - 10})`,
+                value: this.formatValue(ordered.slice(10).reduce((sum, [, value]) => sum + value, 0))
+            });
+        }
+        return items;
+    }
+
+    private moveTooltip(event: MouseEvent, selectionIds: ISelectionId[]): void {
         this.tooltipService.move({
             coordinates: [event.clientX, event.clientY],
             isTouchEvent: false,
-            dataItems: [],
-            identities: []
+            identities: selectionIds
         });
     }
 
     private applyBackground(): void {
-        const background = this.formattingSettings.layoutCard.backgroundColor.value.value;
+        const darkPalette = this.isDarkPaletteSelected();
+        const background = darkPalette
+            ? "#000000"
+            : this.formattingSettings.layoutCard.backgroundColor.value.value;
+        this.target.classList.toggle("dark-background", darkPalette);
         this.svg.style.backgroundColor = background;
         if (this.formattingSettings.layoutCard.showDotPattern.value) {
             const dot = this.isDark(background) ? "rgba(255,255,255,.18)" : "rgba(124,156,191,.28)";
@@ -1273,7 +1445,7 @@ export class Visual implements IVisual {
         text.setAttribute("x", "50%");
         text.setAttribute("y", "50%");
         text.setAttribute("text-anchor", "middle");
-        text.setAttribute("fill", "#7C9CBF");
+        text.setAttribute("fill", this.isDarkPaletteSelected() ? "#FFFFFF" : "#7C9CBF");
         text.setAttribute("font-size", "13");
         text.textContent = message;
         this.svg.appendChild(text);
@@ -1292,6 +1464,10 @@ export class Visual implements IVisual {
             colorMap.set(key, color);
         }
         return color;
+    }
+
+    private isDarkPaletteSelected(): boolean {
+        return this.getSelectedPalette().id === "darkBackground";
     }
 
     private getSelectedPalette(): (typeof PALETTE_OPTIONS)[number] {

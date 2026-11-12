@@ -95,6 +95,39 @@
             font: inherit;
             cursor: pointer;
         }
+
+        .copy-html {
+            padding: 5px 8px;
+            border: 1px solid #c7d0dc;
+            border-radius: 4px;
+            background: #eef1f5;
+            color: #353535;
+            font: inherit;
+            cursor: pointer;
+        }
+
+        .copy-html:focus-visible {
+            outline: 2px solid #4f8ee8;
+            outline-offset: 2px;
+        }
+
+        .copy-status {
+            max-width: 290px;
+            line-height: 1.4;
+        }
+
+        .copy-status:empty {
+            display: none;
+        }
+
+        .copy-html-text {
+            width: 100%;
+            height: 100px;
+            box-sizing: border-box;
+            resize: vertical;
+            background: #fff;
+            color: #353535;
+        }
     }
 
     .visual-branding {
@@ -133,19 +166,37 @@
         overflow: visible;
     }
 
+    .sankey-flow {
+        cursor: pointer;
+    }
+
     .sankey-link {
         cursor: pointer;
         transition: stroke-opacity 120ms ease;
     }
 
-    .sankey-link:hover,
-    .sankey-link:focus {
+    .sankey-flow:hover .sankey-link,
+    .sankey-flow:focus .sankey-link {
         stroke-opacity: 0.82 !important;
-        outline: none;
     }
 
-    .sankey-link.dimmed {
+    .sankey-flow.dimmed .sankey-link {
         stroke-opacity: 0.12 !important;
+    }
+
+    .sankey-flow.hover-dimmed {
+        opacity: 0.15;
+    }
+
+    .sankey-link-label {
+        paint-order: stroke;
+        stroke-width: 4px;
+        stroke-linejoin: round;
+        pointer-events: none;
+    }
+
+    .sankey-flow.dimmed .sankey-link-label {
+        opacity: 0.3;
     }
 
     .sankey-node {
@@ -166,5 +217,44 @@
 
     .sankey-node text {
         pointer-events: none;
+    }
+
+    &.dark-background {
+        color-scheme: dark;
+        color: #fff;
+        background: #000;
+
+        .node-scale-control {
+            background: rgba(0, 0, 0, 0.9);
+            border-color: #667085;
+            color: #fff;
+
+            .auto-toggle,
+            .manual-toggle,
+            .copy-html,
+            .copy-html-text,
+            .palette-row select {
+                background: #222;
+                color: #fff;
+            }
+
+            .auto-toggle.active,
+            .manual-toggle.active {
+                background: #245da8;
+            }
+
+            input:disabled,
+            button:disabled {
+                opacity: 1;
+            }
+        }
+
+        .visual-branding,
+        .visual-branding:hover,
+        .visual-branding:focus {
+            color: #fff;
+            background: transparent;
+            opacity: 1;
+        }
     }
 }

@@ -154,6 +154,11 @@
                     "type": {
                         "bool": true
                     }
+                },
+                "showValues": {
+                    "type": {
+                        "bool": true
+                    }
                 }
             }
         },
@@ -272,5 +277,10 @@
         "default": {}
     },
     "supportsKeyboardFocus": true,
+    "tooltips": {
+        "supportedTypes": {
+            "default": true
+        }
+    },
     "privileges": []
 }
